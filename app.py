@@ -104,7 +104,7 @@ class select_model():
 
 def main():
     st.write("""
-    # Макроэкономические прогнозы
+    #Прогноз ИПЦ
     """)
     #
     st.sidebar.header('User Input Parameters')

@@ -104,7 +104,11 @@ class select_model():
 
 def main():
     st.write("""
+<<<<<<< HEAD
     Прогноз ИПЦ1
+=======
+    #Прогноз ИПЦ
+>>>>>>> 94ecb4c95be498d08031fbd656c361c12e1f8626
     """)
     #
     st.sidebar.header('User Input Parameters')

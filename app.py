@@ -58,14 +58,12 @@ class select_model():
         self.x_test   = x_test
         self.y_test   = y_test
         # assert(len(x_train)==len(y_train)and len(x_test)==len(y_test))
-
     def plot_his(self,hist):
         fig1,ax1 = plt.subplots(figsize=(18, 5))
         ax1.plot(hist.history['mean_squared_error'],label='Обучение')
         ax1.plot(hist.history['val_mean_squared_error'],label='Валидация')
         ax1.legend(loc='best',fontsize=16)
         ax1.grid()
-
 
     def simple_lstm(self):#,ytrain,xtest,ytest):
         ipp_1 = Input(shape=(self.n_steps, self.x_train.shape[2]),name='fact_ipp_1')
@@ -82,24 +80,67 @@ class select_model():
         plottr=self.plot_his(hist=history)
         st.subheader("Процесс обучения")
         st.pyplot(fig=plottr, clear_figure=True, use_container_width=True)
-        my_predicts=model.predict(self.x_test).flatten()
-        return my_predicts
+        # my_predicts=model.predict(self.x_test).flatten()
+        return model# дальше уже  model.predict(x_test).flatten() и
 
     def simple_gru(self):
-        print('x')
+        ipp_1 = Input(shape=(self.n_steps, self.x_train.shape[2]),name='fact_ipp_1')
+        gru1=GRU(6, activation='relu', input_shape=(self.n_steps, self.x_train.shape[2]))(ipp_1)
+        ipp_1_pred=Dense(1,activation='linear', name='out_1')(gru1)
+        model = Model([ipp_1],[ipp_1_pred])
+        model.compile(optimizer='adam',
+                      loss={'out_1': 'mse'},
+                    metrics=['mse', 'mae', 'mape'])
+        history=model.fit({'fact_ipp_1': self.x_train},{'out_1':self.y_train},validation_data=({'fact_ipp_1': self.x_test},
+              {'out_1':self.y_test}),epochs=200, batch_size=len(self.x_test), verbose=0)
+        ###################
+        plottr=self.plot_his(hist=history)
+        st.subheader("Процесс обучения")
+        st.pyplot(fig=plottr, clear_figure=True, use_container_width=True)
+        # my_predicts=model.predict(self.x_test).flatten()
+        return model
 
     def simple_cnn(self):
-        print('x')
-
-def plot_forec_val(ytest,predict,my_dates,scl):
+        ipp_1 = Input(shape=(self.n_steps, self.x_train.shape[2]),name='fact_ipp_1')
+        cnn1 = Conv1D(filters=1, kernel_size=3, activation='relu')(ipp_1)
+        merge = Conv1D(filters=15, kernel_size=1, activation='relu')(cnn1)
+        merge = Flatten()(merge)
+        ipp_1_pred=Dense(1,activation='linear', name='out_1')(merge)
+        model = Model([ipp_1],[ipp_1_pred])
+        model.compile(optimizer='adam',
+                      loss={'out_1': 'mse'},
+                    metrics=['mse', 'mae', 'mape'])
+        history=model.fit({'fact_ipp_1': self.x_train},{'out_1':self.y_train},validation_data=({'fact_ipp_1': self.x_test},
+              {'out_1':self.y_test}),epochs=200, batch_size=len(self.x_test), verbose=0)
+        ###################
+        plottr=self.plot_his(hist=history)
+        st.subheader("Процесс обучения")
+        st.pyplot(fig=plottr, clear_figure=True, use_container_width=True)
+        # my_predicts=model.predict(self.x_test).flatten()
+        return model
+#
+def plot_forec_val(ytest,predict,my_dates,scl,y_hat):
+    date_app=pd.date_range(start=my_dates[-1],periods=len(y_hat),freq='M')
     fig2,ax2 = plt.subplots(figsize=(18, 5))
     ax2.plot(my_dates,ytest, color='black', label = 'Факт')
     ax2.plot(my_dates,scl.inverse_transform(predict),'-.', color='blue', label = 'Прогноз')
+    ax2.plot(date_app,scl.inverse_transform(y_hat),'-.', color='blue')
     ax2.legend(loc='best',fontsize=16)
     ax2.grid()
 
-def main():
 
+
+def forec_per(model,x_test,forec_per):
+    x=x_test[-1]
+    y_hat=np.array([])
+    for i in range(forec_per):
+        y_un=model.predict(x.reshape(1,6,1))[0]
+        y_hat=np.hstack([y_hat,y_un])
+        x=np.concatenate((x,y_un.reshape(-1,1)))[-x_test[-1].shape[0]:]
+    return y_hat
+
+#
+def main():
     st.sidebar.header('Параметры построения прогноза')
     #
     tickdic=dict(zip(load_data().columns,range(0,3)))
@@ -116,25 +157,25 @@ def main():
     "Это тестовый сайт для прогнозирования основных макроэкономических показателей при помощи\
      моделей искуственных нейронных сетей и классической эконометрики. \n  Код доступен на [github](https://github.com/KosarevVS/Dockers),\
       почта kosarevvladimirserg@gmail.com")
-
     x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[company_name])
     my_select_model=select_model(x_train,y_train,x_test,y_test,6)
     my_dates = pd.date_range(start='2017-09-30',periods=len(y_test),freq='M')
     if lstm:
         with st.spinner('Идет обучение нейронной сети...'):
-            my_predicts=my_select_model.simple_lstm()
+            model=my_select_model.simple_lstm()
+            my_predicts=model.predict(x_test).flatten()
     if gru:
         with st.spinner('Идет обучение нейронной сети...'):
-            my_predicts=my_select_model.simple_gru()
+            my_predicts=my_select_model.simple_gru().predict(x_test).flatten()
     if cnn:
         with st.spinner('Идет обучение нейронной сети...'):
-            my_predicts=my_select_model.simple_cnn()
-
+            my_predicts=my_select_model.simple_cnn().predict(x_test).flatten()
     if arima:
         with st.spinner('Построение ARIMA прогноза...'):
             pass
+    #
+    plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,forec_per(model,x_test,3))
 
-    plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl)
     st.subheader("Прогноз на тесте")
     st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
     my_mse=round(metrics.mean_squared_error(y_test, my_predicts),3)
@@ -144,10 +185,6 @@ def main():
     df.index=my_dates
     st.dataframe(df.T)
     st.success('Done!')
-
-
-
-
-
+    #
 if __name__ == '__main__':
     main()

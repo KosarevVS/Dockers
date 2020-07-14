@@ -14,6 +14,7 @@ from keras.optimizers import SGD
 def load_data(url='https://raw.githubusercontent.com/KosarevVS/stacks-for-TS/master/heroku_app/my_data.csv'):
     df_init=pd.read_csv(url)
     df_init=df_init[['CA','DF','DG']].dropna()
+    # df.mask()#убрать значения больше 3 стд отклонений
     my_dates=pd.date_range(start='2001-01-31',periods=len(df_init),freq='M')
     df_init.index=my_dates
     return df_init
@@ -166,23 +167,30 @@ def main():
             my_predicts=model.predict(x_test).flatten()
     if gru:
         with st.spinner('Идет обучение нейронной сети...'):
-            my_predicts=my_select_model.simple_gru().predict(x_test).flatten()
+            model=my_select_model.simple_gru()
+            my_predicts=model.predict(x_test).flatten()
     if cnn:
         with st.spinner('Идет обучение нейронной сети...'):
-            my_predicts=my_select_model.simple_cnn().predict(x_test).flatten()
+            model=my_select_model.simple_cnn()
+            my_predicts=model.predict(x_test).flatten()
     if arima:
         with st.spinner('Построение ARIMA прогноза...'):
             pass
     #
-    plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,forec_per(model,x_test,3))
+    y_hat=forec_per(model,x_test,3)
+    plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
 
     st.subheader("Прогноз на тесте")
     st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
     my_mse=round(metrics.mean_squared_error(y_test, my_predicts),3)
     st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
-    df = pd.DataFrame({'Фактические данные':ytest_or,
-        'Прогнозные данные':scl.inverse_transform(my_predicts)})
-    df.index=my_dates
+
+    all_forec=np.hstack([y_test[:-1],y_hat])
+    a=pd.Series(scl.inverse_transform(all_forec),index=pd.date_range(start='2017-09-30',periods=len(all_forec),freq='M'))
+    b=pd.Series(ytest_or,index=pd.date_range(start='2017-09-30',periods=len(ytest_or),freq='M'))
+    df=pd.concat([b,a],axis=1)
+    df.columns=['Факт','Прогноз']
+
     st.dataframe(df.T)
     st.success('Done!')
     #

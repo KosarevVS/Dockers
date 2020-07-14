@@ -177,12 +177,12 @@ def main():
         with st.spinner('Построение ARIMA прогноза...'):
             pass
     #
-    y_hat=forec_per(model,x_test,3)
+    y_hat=forec_per(model,x_test,7)
     plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
 
     st.subheader("Прогноз на тесте")
     st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
-    my_mse=round(metrics.mean_squared_error(y_test, my_predicts),3)
+    my_mse=round(metrics.mean_squared_error(y_test, my_predicts),7)
     st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
 
     all_forec=np.hstack([y_test[:-1],y_hat])

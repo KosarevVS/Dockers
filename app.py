@@ -32,20 +32,20 @@ def split_sequences(sequences, n_steps):
         y.append(seq_y)
     return np.array(X), np.array(y)
 #
-def prep_data(ncol):
+def prep_data(ncol,n_steps=6,data_sep=200):
     scl = StandardScaler()
-    df_init_scal = scl.fit_transform(load_data().values)#сохраняем мат и дисп для скал тестовой выборки
-    a=df_init_scal[:,ncol].reshape(230,1)
-    b=np.roll(df_init_scal[:,ncol],-1).reshape(230,1)
-    return np.hstack([a,b])
-#
-def prep_data_2(stacked,n_steps=6,data_sep=200):
-        X,y=split_sequences(stacked, n_steps)
-        X_train=X[:data_sep-n_steps+2]
-        X_test=X[data_sep-n_steps+1:]
-        y_train=y[:data_sep-n_steps+2]
-        y_test=y[data_sep-n_steps+1:]
-        return X_train,X_test,y_train,y_test
+    data=load_data().values[:,ncol]
+    df_init_scal = scl.fit_transform(data.reshape(data.shape[0], 1))#сохраняем мат и дисп для скал тестовой выборки
+    a=df_init_scal
+    b=np.roll(df_init_scal,-1)
+    X,y=split_sequences(np.hstack([a,b]), n_steps)
+    X_train=X[:data_sep-n_steps+2]
+    X_test=X[data_sep-n_steps+1:]
+    y_train=y[:data_sep-n_steps+2]
+    y_test=y[data_sep-n_steps+1:]
+    #
+    ytest_or=data[data_sep:]
+    return X_train,X_test,y_train,y_test,scl,ytest_or
 #
 class select_model():
     """
@@ -91,13 +91,10 @@ class select_model():
     def simple_cnn(self):
         print('x')
 
-def plot_forec_val(ytest,predict,my_dates):
+def plot_forec_val(ytest,predict,my_dates,scl):
     fig2,ax2 = plt.subplots(figsize=(18, 5))
-    # scl = StandardScaler()
-    # df_init_scal = scl.fit_transform(load_data().values)#сохраняем мат
-    # pred_inv=scl.inverse_transform(self.y_test)
     ax2.plot(my_dates,ytest, color='black', label = 'Факт')
-    ax2.plot(my_dates,predict,'-.', color='blue', label = 'Прогноз')
+    ax2.plot(my_dates,scl.inverse_transform(predict),'-.', color='blue', label = 'Прогноз')
     ax2.legend(loc='best',fontsize=16)
     ax2.grid()
 
@@ -120,7 +117,7 @@ def main():
      моделей искуственных нейронных сетей и классической эконометрики. \n  Код доступен на [github](https://github.com/KosarevVS/Dockers),\
       почта kosarevvladimirserg@gmail.com")
 
-    x_train,x_test,y_train,y_test=prep_data_2(prep_data(tickdic[company_name]))
+    x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[company_name])
     my_select_model=select_model(x_train,y_train,x_test,y_test,6)
     my_dates = pd.date_range(start='2017-09-30',periods=len(y_test),freq='M')
     if lstm:
@@ -137,13 +134,13 @@ def main():
         with st.spinner('Построение ARIMA прогноза...'):
             pass
 
-    plotfr=plot_forec_val(y_test,my_predicts,my_dates)
+    plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl)
     st.subheader("Прогноз на тесте")
     st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
     my_mse=round(metrics.mean_squared_error(y_test, my_predicts),3)
     st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
-    df = pd.DataFrame({'Фактические данные':y_test,
-        'Прогнозные данные':my_predicts})
+    df = pd.DataFrame({'Фактические данные':ytest_or,
+        'Прогнозные данные':scl.inverse_transform(my_predicts)})
     df.index=my_dates
     st.dataframe(df.T)
     st.success('Done!')

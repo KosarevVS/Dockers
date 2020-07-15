@@ -52,8 +52,9 @@ class select_model():
     """
     Выбор модели и получение прогноза, отрисовка процесса обучения и результатов прогноза
     """
-    def __init__(self,x_train,y_train,x_test,y_test,n_steps=6):
+    def __init__(self,x_train,y_train,x_test,y_test,n_steps=6,n_epoh=200):
         self.n_steps  = n_steps
+        self.n_epoh  = n_epoh
         self.x_train  = x_train
         self.y_train  = y_train
         self.x_test   = x_test
@@ -76,7 +77,7 @@ class select_model():
                       loss={'out_1': 'mse'},
                     metrics=['mse', 'mae', 'mape'])
         history=model.fit({'fact_ipp_1': self.x_train},{'out_1':self.y_train},validation_data=({'fact_ipp_1': self.x_test},
-              {'out_1':self.y_test}),epochs=200, batch_size=len(self.x_test), verbose=0)
+              {'out_1':self.y_test}),epochs=self.n_epoh, batch_size=len(self.x_test), verbose=0)
         ###################
         plottr=self.plot_his(hist=history)
         st.subheader("Процесс обучения")
@@ -93,7 +94,7 @@ class select_model():
                       loss={'out_1': 'mse'},
                     metrics=['mse', 'mae', 'mape'])
         history=model.fit({'fact_ipp_1': self.x_train},{'out_1':self.y_train},validation_data=({'fact_ipp_1': self.x_test},
-              {'out_1':self.y_test}),epochs=200, batch_size=len(self.x_test), verbose=0)
+              {'out_1':self.y_test}),epochs=self.n_epoh, batch_size=len(self.x_test), verbose=0)
         ###################
         plottr=self.plot_his(hist=history)
         st.subheader("Процесс обучения")
@@ -112,7 +113,7 @@ class select_model():
                       loss={'out_1': 'mse'},
                     metrics=['mse', 'mae', 'mape'])
         history=model.fit({'fact_ipp_1': self.x_train},{'out_1':self.y_train},validation_data=({'fact_ipp_1': self.x_test},
-              {'out_1':self.y_test}),epochs=200, batch_size=len(self.x_test), verbose=0)
+              {'out_1':self.y_test}),epochs=self.n_epoh, batch_size=len(self.x_test), verbose=0)
         ###################
         plottr=self.plot_his(hist=history)
         st.subheader("Процесс обучения")
@@ -158,41 +159,62 @@ def main():
     "Это тестовый сайт для прогнозирования основных макроэкономических показателей при помощи\
      моделей искуственных нейронных сетей и классической эконометрики. \n  Код доступен на [github](https://github.com/KosarevVS/Dockers),\
       почта kosarevvladimirserg@gmail.com")
-    x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[company_name])
-    my_select_model=select_model(x_train,y_train,x_test,y_test,6)
-    my_dates = pd.date_range(start='2017-09-30',periods=len(y_test),freq='M')
-    if lstm:
-        with st.spinner('Идет обучение нейронной сети...'):
-            model=my_select_model.simple_lstm()
-            my_predicts=model.predict(x_test).flatten()
-    if gru:
-        with st.spinner('Идет обучение нейронной сети...'):
-            model=my_select_model.simple_gru()
-            my_predicts=model.predict(x_test).flatten()
-    if cnn:
-        with st.spinner('Идет обучение нейронной сети...'):
-            model=my_select_model.simple_cnn()
-            my_predicts=model.predict(x_test).flatten()
-    if arima:
-        with st.spinner('Построение ARIMA прогноза...'):
-            pass
-    #
-    y_hat=forec_per(model,x_test,7)
-    plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
 
-    st.subheader("Прогноз на тесте")
-    st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
-    my_mse=round(metrics.mean_squared_error(y_test, my_predicts),7)
-    st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
 
-    all_forec=np.hstack([y_test[:-1],y_hat])
-    a=pd.Series(scl.inverse_transform(all_forec),index=pd.date_range(start='2017-09-30',periods=len(all_forec),freq='M'))
-    b=pd.Series(ytest_or,index=pd.date_range(start='2017-09-30',periods=len(ytest_or),freq='M'))
-    df=pd.concat([b,a],axis=1)
-    df.columns=['Факт','Прогноз']
+    age = st.slider('Выберите прогнозный период (кол-во месяцев)', 1, 12, 1)
 
-    st.dataframe(df.T)
-    st.success('Done!')
+    nneur = st.slider('Количество нейронов на внутреннем слое', 1, 15, 6)
+    wind = st.slider('Величина временного окна', 3, 24, 6)
+    nepoh = st.slider('Количество эпох обучения', 50, 200, 150,step=25)
+
+    if age==1:
+        st.write("Прогноз показателя ",company_name," будет построет при помощи модели",plot_types," на ", age, 'месяц вперед')
+    elif age==2 or age==3 or age==4:
+        st.write("Прогноз показателя ",company_name," будет построет при помощи модели",plot_types," на ", age, 'месяца вперед')
+    else:
+        st.write("Прогноз показателя ",company_name," будет построет при помощи модели",plot_types," на ", age, 'месяцев вперед')
+
+    # d = st.date_input("Выбирите дату разделения данных",datetime.date(2019, 7, 6))
+    # st.write('Выбранная дата:', d)
+
+    agree = st.button('Запустить расчет')
+    if agree:
+        x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[company_name])
+        my_select_model=select_model(x_train,y_train,x_test,y_test,6,nepoh)
+        my_dates = pd.date_range(start='2017-09-30',periods=len(y_test),freq='M')
+        if lstm:
+
+            with st.spinner('Идет обучение нейронной сети...'):
+                model=my_select_model.simple_lstm()
+                my_predicts=model.predict(x_test).flatten()
+        if gru:
+            with st.spinner('Идет обучение нейронной сети...'):
+                model=my_select_model.simple_gru()
+                my_predicts=model.predict(x_test).flatten()
+        if cnn:
+            with st.spinner('Идет обучение нейронной сети...'):
+                model=my_select_model.simple_cnn()
+                my_predicts=model.predict(x_test).flatten()
+        if arima:
+            with st.spinner('Построение ARIMA прогноза...'):
+                pass
+        #
+        y_hat=forec_per(model,x_test,age+1)
+        plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
+
+        st.subheader("Прогноз на тесте")
+        st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
+        my_mse=round(metrics.mean_squared_error(y_test, my_predicts),age+1)
+        st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
+
+        all_forec=np.hstack([y_test[:-1],y_hat])
+        a=pd.Series(scl.inverse_transform(all_forec),index=pd.date_range(start='2017-09-30',periods=len(all_forec),freq='M'))
+        b=pd.Series(ytest_or,index=pd.date_range(start='2017-09-30',periods=len(ytest_or),freq='M'))
+        df=pd.concat([b,a],axis=1)
+        df.columns=['Факт','Прогноз']
+
+        st.dataframe(df.T)
+        st.success('Done!')
     #
 if __name__ == '__main__':
     main()

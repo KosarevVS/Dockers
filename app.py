@@ -11,7 +11,7 @@ from keras.layers.convolutional import Conv1D
 from keras.optimizers import SGD
 #
 @st.cache
-def load_data(url='https://raw.githubusercontent.com/KosarevVS/stacks-for-TS/master/heroku_app/my_data.csv'):
+def load_data(url='https://raw.githubusercontent.com/KosarevVS/Dockers/master/my_data.csv'):
     df_init=pd.read_csv(url,index_col=0)
     # df_init=df_init.dropna()
     # df.mask()#убрать значения больше 3 стд отклонений

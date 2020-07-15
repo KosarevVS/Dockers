@@ -12,8 +12,8 @@ from keras.optimizers import SGD
 #
 @st.cache
 def load_data(url='https://raw.githubusercontent.com/KosarevVS/stacks-for-TS/master/heroku_app/my_data.csv'):
-    df_init=pd.read_csv(url)
-    df_init=df_init[['CA','DF','DG']].dropna()
+    df_init=pd.read_csv(url,index_col=0)
+    # df_init=df_init.dropna()
     # df.mask()#убрать значения больше 3 стд отклонений
     my_dates=pd.date_range(start='2001-01-31',periods=len(df_init),freq='M')
     df_init.index=my_dates
@@ -173,6 +173,9 @@ def main():
     "Это тестовый сайт для прогнозирования основных макроэкономических показателей при помощи\
      моделей искуственных нейронных сетей и классической эконометрики. \n  Код доступен на [github](https://github.com/KosarevVS/Dockers),\
       почта kosarevvladimirserg@gmail.com")
+    st.subheader('Исходные данные')
+    st.line_chart(load_data()[name_fact],height=200)
+    st.write('Источник данных: Росстат')
     st.subheader('Параметры модели')
     yearsfr = st.slider('Выберите прогнозный период (кол-во месяцев):', 1, 12, 1)
     if yearsfr==1:

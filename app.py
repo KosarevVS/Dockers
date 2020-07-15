@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import base64
 from matplotlib.pylab import plt
 from sklearn.preprocessing import StandardScaler
 from sklearn import metrics
@@ -154,7 +155,13 @@ def print_rez(model,x_test,y_test,yearsfr,scl,ytest_or):
     df=pd.concat([b,a],axis=1)
     df.columns=['Факт','Прогноз']
     st.dataframe(df.T)
+    csv_exp = df.to_csv()
+    b64 = base64.b64encode(csv_exp.encode()).decode()  # some strings <-> bytes conversions necessary here
+    href = f'<a href="data:file/csv;base64,{b64}">Скачать прогноз</a> (добавьте к загруженному файлу расширение **.csv**)'
+    st.markdown(href, unsafe_allow_html=True)
     st.success('Done!')
+
+
 #
 def main():
     st.sidebar.header('Параметры построения прогноза')
@@ -235,7 +242,6 @@ def main():
                 st.write('Здесь код еще не дописан...')
 
         ##########################################################################
-
 
 
     #

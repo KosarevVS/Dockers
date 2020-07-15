@@ -173,6 +173,7 @@ def main():
     "Это тестовый сайт для прогнозирования основных макроэкономических показателей при помощи\
      моделей искуственных нейронных сетей и классической эконометрики. \n  Код доступен на [github](https://github.com/KosarevVS/Dockers),\
       почта kosarevvladimirserg@gmail.com")
+    st.subheader('Параметры модели')
     yearsfr = st.slider('Выберите прогнозный период (кол-во месяцев):', 1, 12, 1)
     if yearsfr==1:
         st.write("Прогноз показателя будет построет на ", yearsfr, 'месяц вперед')
@@ -184,8 +185,14 @@ def main():
     # st.write('Выбранная дата:', d)
     if lstm:
         nneur = st.slider('Количество нейронов на внутреннем слое:', 1, 15, 6)
-        wind = st.slider('Величина временного окна:', 3, 24, 6)
+        wind = st.slider('Размерность паттерна (величина временного окна):', 3, 24, 6)
+        # st.write("Прогноз на t+1 период определяют ", wind, ' предыдущих значений прогнозируемого показателя.')
         nepoh = st.slider('Количество эпох обучения:', 50, 200, 150,step=25)
+        # a = st.checkbox("Показать описание параметров")
+        # if a:
+        #     st.write('Величина временного окна - количество наблюдений прогнозируемого показателя, используемых в качестве одного паттерна нейронной сети.')
+        # else:
+        #     pass
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение нейронной сети...'):
@@ -193,9 +200,9 @@ def main():
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_lstm()
                 print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
     if gru:
-        nneur = st.slider('Количество нейронов на внутреннем слое', 1, 15, 6)
-        wind = st.slider('Величина временного окна', 3, 24, 6)
-        nepoh = st.slider('Количество эпох обучения', 50, 200, 150,step=25)
+        nneur = st.slider('Количество нейронов на внутреннем слое:', 1, 15, 6)
+        wind = st.slider('Величина временного окна:', 3, 24, 6)
+        nepoh = st.slider('Количество эпох обучения:', 50, 200, 150,step=25)
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение нейронной сети...'):
@@ -203,14 +210,14 @@ def main():
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_gru()
                 print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
     if cnn:
-        nneur = st.slider('Количество сверточных фильтров', 1, 15, 5)
-        wind = st.slider('Величина временного окна', 3, 24, 6)
-        nepoh = st.slider('Количество эпох обучения', 50, 200, 150,step=25)
+        nneur = st.slider('Количество сверточных фильтров:', 1, 15, 5)
+        wind = st.slider('Величина временного окна:', 3, 24, 6)
+        nepoh = st.slider('Количество эпох обучения:', 50, 200, 150,step=25)
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение сверточной нейронной сети...'):
                 x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact])
-                model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_rnn()
+                model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_cnn()
                 print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
 
     if arima:
@@ -219,9 +226,10 @@ def main():
             with st.spinner('Выбор наилучшей ARIMA модели...'):
                 import time
                 my_bar = st.progress(0)
-                for percent_complete in range(50):
-                    time.sleep(0.1)
+                for percent_complete in range(100):
+                    time.sleep(0.01)
                     my_bar.progress(percent_complete + 1)
+                st.write('Здесь код еще не дописан...')
 
         ##########################################################################
 

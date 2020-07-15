@@ -229,33 +229,33 @@ def main():
                 for percent_complete in range(50):
                     time.sleep(0.1)
                     my_bar.progress(percent_complete + 1)
-            # p_values = range(0, 5) # Note: range(start, end) does not include end point
-            # d_values = range(0, 2)
-            # q_values = range(0, 5)
-            #
-            # dataset = load_data()
-            # best_score, best_cfg = float("inf"), None
-            # training_size = int(len(dataset) * training_set_size)
-            # train = dataset[0:training_size]
-            # for d in d_values:
-            #     result = adfuller(train)
-            #     if result[1] < p_value_critical:
-            #         d = 0
-            #     else:
-            #         d = d
-            #     for p in p_values:
-            #         for q in q_values:
-            #             order = (p,d,q)
-            #             try:
-            #                 model = ARIMA(train, order = order)
-            #                 model_fit = model.fit(disp=0)
-            #                 bic = model_fit.bic
-            #                 if bic < best_score:
-            #                     best_score, best_cfg = bic, order
-            #                     print('ARIMA%s BIC=%.3f' % (order, bic))
-            #             except:
-            #                 continue
-            #     print('Best ARIMA%s BIC=%.3f' % (best_cfg, best_score))
+            p_values = range(0, 5) # Note: range(start, end) does not include end point
+            d_values = range(0, 2)
+            q_values = range(0, 5)
+
+            dataset = load_data()
+            best_score, best_cfg = float("inf"), None
+            training_size = int(len(dataset) * training_set_size)
+            train = dataset[0:training_size]
+            for d in d_values:
+                result = adfuller(train)
+                if result[1] < p_value_critical:
+                    d = 0
+                else:
+                    d = d
+                for p in p_values:
+                    for q in q_values:
+                        order = (p,d,q)
+                        try:
+                            model = ARIMA(train, order = order)
+                            model_fit = model.fit(disp=0)
+                            bic = model_fit.bic
+                            if bic < best_score:
+                                best_score, best_cfg = bic, order
+                                print('ARIMA%s BIC=%.3f' % (order, bic))
+                        except:
+                            continue
+                print('Best ARIMA%s BIC=%.3f' % (best_cfg, best_score))
         ##########################################################################
 
 

@@ -130,8 +130,6 @@ def plot_forec_val(ytest,predict,my_dates,scl,y_hat):
     ax2.legend(loc='best',fontsize=16)
     ax2.grid()
 
-
-
 def forec_per(model,x_test,forec_per):
     x=x_test[-1]
     y_hat=np.array([])
@@ -141,12 +139,28 @@ def forec_per(model,x_test,forec_per):
         x=np.concatenate((x,y_un.reshape(-1,1)))[-x_test[-1].shape[0]:]
     return y_hat
 
+def print_rez(model,x_test,y_test,yearsfr,scl,ytest_or):
+    my_predicts=model.predict(x_test).flatten()
+    y_hat=forec_per(model,x_test,yearsfr+1)
+    my_dates = pd.date_range(start='2017-09-30',periods=len(y_test),freq='M')
+    plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
+    st.subheader("Прогноз на тесте")
+    st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
+    my_mse=round(metrics.mean_squared_error(y_test, my_predicts),yearsfr+1)
+    st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
+    all_forec=np.hstack([y_test[:-1],y_hat])
+    a=pd.Series(scl.inverse_transform(all_forec),index=pd.date_range(start='2017-09-30',periods=len(all_forec),freq='M'))
+    b=pd.Series(ytest_or,index=pd.date_range(start='2017-09-30',periods=len(ytest_or),freq='M'))
+    df=pd.concat([b,a],axis=1)
+    df.columns=['Факт','Прогноз']
+    st.dataframe(df.T)
+    st.success('Done!')
 #
 def main():
     st.sidebar.header('Параметры построения прогноза')
     #
     tickdic=dict(zip(load_data().columns,range(0,3)))
-    company_name = st.sidebar.selectbox('Выбор показателя', load_data().columns)
+    name_fact = st.sidebar.selectbox('Выбор показателя', load_data().columns)
     plot_types = st.sidebar.radio("Выбор прогнозной модели",
         ['LSTM','GRU','CNN','ARIMA'])
     # call the above function
@@ -159,37 +173,25 @@ def main():
     "Это тестовый сайт для прогнозирования основных макроэкономических показателей при помощи\
      моделей искуственных нейронных сетей и классической эконометрики. \n  Код доступен на [github](https://github.com/KosarevVS/Dockers),\
       почта kosarevvladimirserg@gmail.com")
-
-
-    yearsfr = st.slider('Выберите прогнозный период (кол-во месяцев)', 1, 12, 1)
-
-
-
+    yearsfr = st.slider('Выберите прогнозный период (кол-во месяцев):', 1, 12, 1)
     if yearsfr==1:
-        st.write("Прогноз показателя ",company_name," будет построет при помощи модели",plot_types," на ", yearsfr, 'месяц вперед')
+        st.write("Прогноз показателя будет построет на ", yearsfr, 'месяц вперед')
     elif yearsfr==2 or yearsfr==3 or yearsfr==4:
-        st.write("Прогноз показателя ",company_name," будет построет при помощи модели",plot_types," на ", yearsfr, 'месяца вперед')
+        st.write("Прогноз показателя будет построет на ", yearsfr, 'месяца вперед')
     else:
-        st.write("Прогноз показателя ",company_name," будет построет при помощи модели",plot_types," на ", yearsfr, 'месяцев вперед')
-
+        st.write("Прогноз показателя будет построет на ", yearsfr, 'месяцев вперед')
     # d = st.date_input("Выбирите дату разделения данных",datetime.date(2019, 7, 6))
     # st.write('Выбранная дата:', d)
-
     if lstm:
-        nneur = st.slider('Количество нейронов на внутреннем слое', 1, 15, 6)
-        wind = st.slider('Величина временного окна', 3, 24, 6)
-        nepoh = st.slider('Количество эпох обучения', 50, 200, 150,step=25)
+        nneur = st.slider('Количество нейронов на внутреннем слое:', 1, 15, 6)
+        wind = st.slider('Величина временного окна:', 3, 24, 6)
+        nepoh = st.slider('Количество эпох обучения:', 50, 200, 150,step=25)
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение нейронной сети...'):
-
-                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[company_name])
-                my_select_model=select_model(x_train,y_train,x_test,y_test,6,nepoh)
-                my_dates = pd.date_range(start='2017-09-30',periods=len(y_test),freq='M')
-                model=my_select_model.simple_lstm()
-                my_predicts=model.predict(x_test).flatten()
-                y_hat=forec_per(model,x_test,yearsfr+1)
-                plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
+                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact])
+                model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_lstm()
+                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
     if gru:
         nneur = st.slider('Количество нейронов на внутреннем слое', 1, 15, 6)
         wind = st.slider('Величина временного окна', 3, 24, 6)
@@ -197,28 +199,19 @@ def main():
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение нейронной сети...'):
-                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[company_name])
-                my_select_model=select_model(x_train,y_train,x_test,y_test,6,nepoh)
-                my_dates = pd.date_range(start='2017-09-30',periods=len(y_test),freq='M')
-                model=my_select_model.simple_gru()
-                my_predicts=model.predict(x_test).flatten()
-                y_hat=forec_per(model,x_test,yearsfr+1)
-                plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
-
+                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact])
+                model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_gru()
+                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
     if cnn:
-        nneur = st.slider('Количество нейронов на внутреннем слое', 1, 15, 6)
+        nneur = st.slider('Количество сверточных фильтров', 1, 15, 5)
         wind = st.slider('Величина временного окна', 3, 24, 6)
         nepoh = st.slider('Количество эпох обучения', 50, 200, 150,step=25)
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение сверточной нейронной сети...'):
-                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[company_name])
-                my_select_model=select_model(x_train,y_train,x_test,y_test,6,nepoh)
-                my_dates = pd.date_range(start='2017-09-30',periods=len(y_test),freq='M')
-                model=my_select_model.simple_cnn()
-                my_predicts=model.predict(x_test).flatten()
-                y_hat=forec_per(model,x_test,yearsfr+1)
-                plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
+                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact])
+                model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_rnn()
+                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
 
     if arima:
         agree = st.button('Запустить расчет')
@@ -229,49 +222,11 @@ def main():
                 for percent_complete in range(50):
                     time.sleep(0.1)
                     my_bar.progress(percent_complete + 1)
-            p_values = range(0, 5) # Note: range(start, end) does not include end point
-            d_values = range(0, 2)
-            q_values = range(0, 5)
 
-            dataset = load_data()
-            best_score, best_cfg = float("inf"), None
-            training_size = int(len(dataset) * training_set_size)
-            train = dataset[0:training_size]
-            for d in d_values:
-                result = adfuller(train)
-                if result[1] < p_value_critical:
-                    d = 0
-                else:
-                    d = d
-                for p in p_values:
-                    for q in q_values:
-                        order = (p,d,q)
-                        try:
-                            model = ARIMA(train, order = order)
-                            model_fit = model.fit(disp=0)
-                            bic = model_fit.bic
-                            if bic < best_score:
-                                best_score, best_cfg = bic, order
-                                print('ARIMA%s BIC=%.3f' % (order, bic))
-                        except:
-                            continue
-                print('Best ARIMA%s BIC=%.3f' % (best_cfg, best_score))
         ##########################################################################
 
 
-        st.subheader("Прогноз на тесте")
-        st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
-        my_mse=round(metrics.mean_squared_error(y_test, my_predicts),yearsfr+1)
-        st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
 
-        all_forec=np.hstack([y_test[:-1],y_hat])
-        a=pd.Series(scl.inverse_transform(all_forec),index=pd.date_range(start='2017-09-30',periods=len(all_forec),freq='M'))
-        b=pd.Series(ytest_or,index=pd.date_range(start='2017-09-30',periods=len(ytest_or),freq='M'))
-        df=pd.concat([b,a],axis=1)
-        df.columns=['Факт','Прогноз']
-
-        st.dataframe(df.T)
-        st.success('Done!')
     #
 if __name__ == '__main__':
     main()

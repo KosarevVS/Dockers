@@ -42,7 +42,7 @@ def split_sequences(sequences, n_steps):
         y.append(seq_y)
     return np.array(X), np.array(y)
 #
-def prep_data(ncol,n_steps=6,data_sep=0.8,userdata=None):
+def prep_data(ncol,data_sep,n_steps=6,userdata=None):
     scl = StandardScaler()
     if userdata is not None:
         data=load_data(userdata=userdata).values[:,0]
@@ -57,11 +57,9 @@ def prep_data(ncol,n_steps=6,data_sep=0.8,userdata=None):
     X_test=X[sep-n_steps:]
     y_train=y[:sep-n_steps]
     y_test=y[sep-n_steps:]
-    #
     ytest_or=data[sep:]
     return X_train,X_test,y_train,y_test,scl,ytest_or
 
-prep_data(ncol=0,userdata=None)
 #
 class select_model():
     """
@@ -154,18 +152,19 @@ def forec_per(model,x_test,forec_per):
         x=np.concatenate((x,y_un.reshape(-1,1)))[-x_test[-1].shape[0]:]
     return y_hat
 
-def print_rez(model,x_test,y_test,yearsfr,scl,ytest_or):
+def print_rez(model,x_test,y_test,yearsfr,scl,ytest_or,userdata,data_sep):
     my_predicts=model.predict(x_test).flatten()
     y_hat=forec_per(model,x_test,yearsfr+1)
-    my_dates = pd.date_range(start='2017-09-30',periods=len(y_test),freq='M')
+    sep_date=load_data(userdata=userdata).index[round(data_sep*len(load_data(userdata=userdata)))]
+    my_dates = pd.date_range(start=sep_date,periods=len(y_test),freq='M')
     plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
     st.subheader("Прогноз на тесте")
     st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
     my_mse=round(metrics.mean_squared_error(y_test, my_predicts),yearsfr+1)
     st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
     all_forec=np.hstack([y_test[:-1],y_hat])
-    a=pd.Series(scl.inverse_transform(all_forec),index=pd.date_range(start='2017-09-30',periods=len(all_forec),freq='M'))
-    b=pd.Series(ytest_or,index=pd.date_range(start='2017-09-30',periods=len(ytest_or),freq='M'))
+    a=pd.Series(scl.inverse_transform(all_forec),index=pd.date_range(start=sep_date,periods=len(all_forec),freq='M'))
+    b=pd.Series(ytest_or,index=pd.date_range(start=sep_date,periods=len(ytest_or),freq='M'))
     df=pd.concat([b,a],axis=1)
     df.columns=['Факт','Прогноз']
     st.dataframe(df.T)
@@ -174,8 +173,6 @@ def print_rez(model,x_test,y_test,yearsfr,scl,ytest_or):
     href = f'<a href="data:file/csv;base64,{b64}">Скачать прогноз</a> (добавьте к загруженному файлу расширение **.csv**)'
     st.markdown(href, unsafe_allow_html=True)
     st.success('Done!')
-
-
 #
 def main():
     st.sidebar.header('Параметры построения прогноза')
@@ -216,6 +213,9 @@ def main():
         st.write("Прогноз показателя будет построет на ", yearsfr, 'месяцев вперед')
     # d = st.date_input("Выбирите дату разделения данных",datetime.date(2019, 7, 6))
     # st.write('Выбранная дата:', d)
+    data_sep=st.slider('Доля тренировочной выборки от исходного набора данных,%:', 1, 100, 80)/100
+
+
     if lstm:
         nneur = st.slider('Количество нейронов на внутреннем слое:', 1, 15, 6)
         wind = st.slider('Размерность паттерна (величина временного окна):', 3, 24, 6)
@@ -229,9 +229,9 @@ def main():
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение нейронной сети...'):
-                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],userdata=userdata)
+                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],data_sep=data_sep,userdata=userdata)
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_lstm()
-                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
+                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or,userdata,data_sep)
     if gru:
         nneur = st.slider('Количество нейронов на внутреннем слое:', 1, 15, 6)
         wind = st.slider('Величина временного окна:', 3, 24, 6)
@@ -239,9 +239,9 @@ def main():
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение нейронной сети...'):
-                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],userdata=userdata)
+                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],data_sep=data_sep,userdata=userdata)
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_gru()
-                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
+                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or,userdata,data_sep)
     if cnn:
         nneur = st.slider('Количество сверточных фильтров:', 1, 15, 5)
         wind = st.slider('Величина временного окна:', 3, 24, 6)
@@ -249,9 +249,9 @@ def main():
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение сверточной нейронной сети...'):
-                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],userdata=userdata)
+                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],data_sep=data_sep,userdata=userdata)
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_cnn()
-                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
+                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or,userdata,data_sep)
 
     if arima:
         agree = st.button('Запустить расчет')

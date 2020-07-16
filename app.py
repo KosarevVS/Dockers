@@ -12,17 +12,25 @@ from keras.layers.convolutional import Conv1D
 from keras.optimizers import SGD
 #
 @st.cache
-def load_data(url='https://raw.githubusercontent.com/KosarevVS/Dockers/master/my_data.csv'):
-    df_init=pd.read_csv(url,index_col=0)
-    # df_init=df_init.dropna()
-    # df.mask()#убрать значения больше 3 стд отклонений
-    my_dates=pd.date_range(start='2001-01-31',periods=len(df_init),freq='M')
-    df_init.index=my_dates
+def load_data(url='https://raw.githubusercontent.com/KosarevVS/Dockers/master/my_data.csv',userdata=None):
+    if userdata is not None:
+        try:
+            df_init=pd.read_csv(userdata,index_col=0)
+            df_init=df_init.dropna()
+            df_init.index = pd.to_datetime(df_init.index,errors='coerce')
+        except:
+            st.write('Что-то не то с форматом данных.')
+    else:
+        df_init=pd.read_csv(url,index_col=0)
+        # df_init=df_init.dropna()
+        # df.mask()#убрать значения больше 3 стд отклонений
+        my_dates=pd.date_range(start='2001-01-31',periods=len(df_init),freq='M')
+        df_init.index=my_dates
     return df_init
 #
 def split_sequences(sequences, n_steps):
     X, y = list(), list()
-    for i in range(len(sequences)):
+    for i in range(len(sequences[:-n_steps])):#последние n_steps не берем, потому что прогнозировать нечего
     # find the end of this pattern
         end_ix = i + n_steps
         # check if we are beyond the dataset
@@ -34,20 +42,26 @@ def split_sequences(sequences, n_steps):
         y.append(seq_y)
     return np.array(X), np.array(y)
 #
-def prep_data(ncol,n_steps=6,data_sep=200):
+def prep_data(ncol,n_steps=6,data_sep=0.8,userdata=None):
     scl = StandardScaler()
-    data=load_data().values[:,ncol]
+    if userdata is not None:
+        data=load_data(userdata=userdata).values[:,0]
+    else:
+        data=load_data(userdata=userdata).values[:,ncol]
     df_init_scal = scl.fit_transform(data.reshape(data.shape[0], 1))#сохраняем мат и дисп для скал тестовой выборки
     a=df_init_scal
     b=np.roll(df_init_scal,-1)
     X,y=split_sequences(np.hstack([a,b]), n_steps)
-    X_train=X[:data_sep-n_steps+2]
-    X_test=X[data_sep-n_steps+1:]
-    y_train=y[:data_sep-n_steps+2]
-    y_test=y[data_sep-n_steps+1:]
+    sep=round(data_sep*len(data))
+    X_train=X[:sep-n_steps]
+    X_test=X[sep-n_steps:]
+    y_train=y[:sep-n_steps]
+    y_test=y[sep-n_steps:]
     #
-    ytest_or=data[data_sep:]
+    ytest_or=data[sep:]
     return X_train,X_test,y_train,y_test,scl,ytest_or
+
+prep_data(ncol=0,userdata=None)
 #
 class select_model():
     """
@@ -165,9 +179,9 @@ def print_rez(model,x_test,y_test,yearsfr,scl,ytest_or):
 #
 def main():
     st.sidebar.header('Параметры построения прогноза')
-    #
-    tickdic=dict(zip(load_data().columns,range(0,3)))
-    name_fact = st.sidebar.selectbox('Выбор показателя', load_data().columns)
+    userdata=None
+    tickdic=dict(zip(load_data(userdata=None).columns,range(0,3)))
+    name_fact = st.sidebar.selectbox('Выбор показателя', load_data(userdata=None).columns)
     plot_types = st.sidebar.radio("Выбор прогнозной модели",
         ['LSTM','GRU','CNN','ARIMA'])
     # call the above function
@@ -181,10 +195,19 @@ def main():
      моделей искуственных нейронных сетей и классической эконометрики. \n  Код доступен на [github](https://github.com/KosarevVS/Dockers),\
       почта kosarevvladimirserg@gmail.com")
     st.subheader('Исходные данные')
-    st.line_chart(load_data()[name_fact],height=200)
-    st.write('Источник данных: Росстат')
+
+    agree = st.checkbox('Згрузить собственные данные')
+    if agree:
+        userdata = st.file_uploader('Поместитн csv файл сюда. Файл должен содержать два столбца: первый - даты, желательно в формате "YYYY-MM-DD", второй - числовой ряд.', type='csv', encoding='auto')
+
+    if userdata is not None:
+        st.line_chart(load_data(userdata=userdata),height=200)
+        st.write('Источник данных: Пользователь')
+    else:
+        st.line_chart(load_data(userdata=userdata)[name_fact],height=200)
+        st.write('Источник данных: Росстат')
     st.subheader('Параметры модели')
-    yearsfr = st.slider('Выберите прогнозный период (кол-во месяцев):', 1, 12, 1)
+    yearsfr = st.slider('Выберите прогнозный период (кол-во месяцев):', 1, 12, 12)
     if yearsfr==1:
         st.write("Прогноз показателя будет построет на ", yearsfr, 'месяц вперед')
     elif yearsfr==2 or yearsfr==3 or yearsfr==4:
@@ -206,7 +229,7 @@ def main():
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение нейронной сети...'):
-                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact])
+                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],userdata=userdata)
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_lstm()
                 print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
     if gru:
@@ -216,7 +239,7 @@ def main():
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение нейронной сети...'):
-                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact])
+                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],userdata=userdata)
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_gru()
                 print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
     if cnn:
@@ -226,7 +249,7 @@ def main():
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение сверточной нейронной сети...'):
-                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact])
+                x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],userdata=userdata)
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_cnn()
                 print_rez(model,x_test,y_test,yearsfr,scl,ytest_or)
 

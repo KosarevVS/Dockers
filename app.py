@@ -10,6 +10,8 @@ from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Reshape, LSTM, GRU
 from keras.layers.convolutional import Conv1D
 from keras.optimizers import SGD
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.arima_model import ARIMA
 #
 @st.cache
 def load_data(url='https://raw.githubusercontent.com/KosarevVS/Dockers/master/my_data.csv',userdata=None):
@@ -22,6 +24,7 @@ def load_data(url='https://raw.githubusercontent.com/KosarevVS/Dockers/master/my
             st.write('Что-то не то с форматом данных.')
     else:
         df_init=pd.read_csv(url,index_col=0)
+        # df_init=pd.read_csv('testherok.csv',index_col=0)
         # df_init=df_init.dropna()
         # df.mask()#убрать значения больше 3 стд отклонений
         my_dates=pd.date_range(start='2001-01-31',periods=len(df_init),freq='M')
@@ -91,12 +94,10 @@ class select_model():
                     metrics=['mse', 'mae', 'mape'])
         history=model.fit({'fact_ipp_1': self.x_train},{'out_1':self.y_train},validation_data=({'fact_ipp_1': self.x_test},
               {'out_1':self.y_test}),epochs=self.n_epoh, batch_size=len(self.x_test), verbose=0)
-        ###################
         plottr=self.plot_his(hist=history)
         st.subheader("Процесс обучения")
         st.pyplot(fig=plottr, clear_figure=True, use_container_width=True)
-        # my_predicts=model.predict(self.x_test).flatten()
-        return model# дальше уже  model.predict(x_test).flatten() и
+        return model
 
     def simple_gru(self):
         ipp_1 = Input(shape=(self.n_steps, self.x_train.shape[2]),name='fact_ipp_1')
@@ -133,6 +134,7 @@ class select_model():
         st.pyplot(fig=plottr, clear_figure=True, use_container_width=True)
         # my_predicts=model.predict(self.x_test).flatten()
         return model
+
 #
 def plot_forec_val(ytest,predict,my_dates,scl,y_hat):
     date_app=pd.date_range(start=my_dates[-1],periods=len(y_hat),freq='M')
@@ -152,15 +154,15 @@ def forec_per(model,x_test,forec_per):
         x=np.concatenate((x,y_un.reshape(-1,1)))[-x_test[-1].shape[0]:]
     return y_hat
 
-def print_rez(model,x_test,y_test,yearsfr,scl,ytest_or,userdata,data_sep):
+def print_rez(model,x_test,y_test,per_forecast,scl,ytest_or,userdata,data_sep):
     my_predicts=model.predict(x_test).flatten()
-    y_hat=forec_per(model,x_test,yearsfr+1)
+    y_hat=forec_per(model,x_test,per_forecast+1)
     sep_date=load_data(userdata=userdata).index[round(data_sep*len(load_data(userdata=userdata)))]
     my_dates = pd.date_range(start=sep_date,periods=len(y_test),freq='M')
     plotfr=plot_forec_val(ytest_or,my_predicts,my_dates,scl,y_hat)
     st.subheader("Прогноз на тесте")
     st.pyplot(fig=plotfr, clear_figure=True, use_container_width=True)
-    my_mse=round(metrics.mean_squared_error(y_test, my_predicts),yearsfr+1)
+    my_mse=round(metrics.mean_squared_error(y_test, my_predicts),per_forecast+1)
     st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
     all_forec=np.hstack([y_test[:-1],y_hat])
     a=pd.Series(scl.inverse_transform(all_forec),index=pd.date_range(start=sep_date,periods=len(all_forec),freq='M'))
@@ -174,6 +176,30 @@ def print_rez(model,x_test,y_test,yearsfr,scl,ytest_or,userdata,data_sep):
     st.markdown(href, unsafe_allow_html=True)
     st.success('Done!')
 #
+def best_arima(train, p_values, d_values, q_values):
+    best_score, best_cfg = float("inf"), None
+    for d in d_values:
+        result = adfuller(train)
+        print(result)
+        if round(result[1],3) < 0.05:
+            d = 0
+        else:
+            d = d
+        for p in p_values:
+            for q in q_values:
+                order = (p,d,q)
+                try:
+                    model = ARIMA(train, order = order)
+                    model_fit = model.fit(disp=0)
+                    bic = model_fit.bic
+                    if bic < best_score:
+                        best_score, best_cfg = bic, order
+                    # print('ARIMA%s BIC=%.3f' % (order, bic))
+                except:
+                    continue
+    text='Наилучшая ARIMA%s BIC=%.3f' % (best_cfg, best_score)
+    return text,best_cfg
+
 def main():
     st.sidebar.header('Параметры построения прогноза')
     userdata=None
@@ -204,23 +230,24 @@ def main():
         st.line_chart(load_data(userdata=userdata)[name_fact],height=200)
         st.write('Источник данных: Росстат')
     st.subheader('Параметры модели')
-    yearsfr = st.slider('Выберите прогнозный период (кол-во месяцев):', 1, 12, 12)
-    if yearsfr==1:
-        st.write("Прогноз показателя будет построет на ", yearsfr, 'месяц вперед')
-    elif yearsfr==2 or yearsfr==3 or yearsfr==4:
-        st.write("Прогноз показателя будет построет на ", yearsfr, 'месяца вперед')
+    per_forecast = st.slider('Выберите прогнозный период (кол-во месяцев):', 1, 12, 12)
+    if per_forecast==1:
+        st.write("Прогноз показателя будет построет на ", per_forecast, 'месяц вперед')
+    elif per_forecast==2 or per_forecast==3 or per_forecast==4:
+        st.write("Прогноз показателя будет построет на ", per_forecast, 'месяца вперед')
     else:
-        st.write("Прогноз показателя будет построет на ", yearsfr, 'месяцев вперед')
+        st.write("Прогноз показателя будет построет на ", per_forecast, 'месяцев вперед')
     # d = st.date_input("Выбирите дату разделения данных",datetime.date(2019, 7, 6))
     # st.write('Выбранная дата:', d)
-    data_sep=st.slider('Доля тренировочной выборки от исходного набора данных,%:', 1, 100, 80)/100
+    data_sep=st.slider('Доля тренировочной выборки от исходного набора данных,%:', 1, 100, 85)/100
+    ###########################################################################################################
 
-
+    ##########################################################################################################
     if lstm:
         nneur = st.slider('Количество нейронов на внутреннем слое:', 1, 15, 6)
         wind = st.slider('Размерность паттерна (величина временного окна):', 3, 24, 6)
         # st.write("Прогноз на t+1 период определяют ", wind, ' предыдущих значений прогнозируемого показателя.')
-        nepoh = st.slider('Количество эпох обучения:', 50, 200, 150,step=25)
+        nepoh = st.slider('Количество эпох обучения:', 50, 200, 200,step=25)
         # a = st.checkbox("Показать описание параметров")
         # if a:
         #     st.write('Величина временного окна - количество наблюдений прогнозируемого показателя, используемых в качестве одного паттерна нейронной сети.')
@@ -231,7 +258,7 @@ def main():
             with st.spinner('Идет обучение нейронной сети...'):
                 x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],data_sep=data_sep,userdata=userdata)
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_lstm()
-                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or,userdata,data_sep)
+                print_rez(model,x_test,y_test,per_forecast,scl,ytest_or,userdata,data_sep)
     if gru:
         nneur = st.slider('Количество нейронов на внутреннем слое:', 1, 15, 6)
         wind = st.slider('Величина временного окна:', 3, 24, 6)
@@ -241,7 +268,7 @@ def main():
             with st.spinner('Идет обучение нейронной сети...'):
                 x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],data_sep=data_sep,userdata=userdata)
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_gru()
-                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or,userdata,data_sep)
+                print_rez(model,x_test,y_test,per_forecast,scl,ytest_or,userdata,data_sep)
     if cnn:
         nneur = st.slider('Количество сверточных фильтров:', 1, 15, 5)
         wind = st.slider('Величина временного окна:', 3, 24, 6)
@@ -251,18 +278,79 @@ def main():
             with st.spinner('Идет обучение сверточной нейронной сети...'):
                 x_train,x_test,y_train,y_test,scl,ytest_or=prep_data(ncol=tickdic[name_fact],data_sep=data_sep,userdata=userdata)
                 model=select_model(x_train,y_train,x_test,y_test,6,nepoh).simple_cnn()
-                print_rez(model,x_test,y_test,yearsfr,scl,ytest_or,userdata,data_sep)
+                print_rez(model,x_test,y_test,per_forecast,scl,ytest_or,userdata,data_sep)
 
     if arima:
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Выбор наилучшей ARIMA модели...'):
-                import time
-                my_bar = st.progress(0)
-                for percent_complete in range(100):
-                    time.sleep(0.01)
-                    my_bar.progress(percent_complete + 1)
-                st.write('Здесь код еще не дописан...')
+                # загрузка данных
+                if userdata is not None:
+                    data=load_data(userdata=userdata)
+                else:
+                    data=load_data(userdata=userdata)[name_fact]
+                # скалирование
+
+                # разделение на трейн и тесте
+                train,test=data.values[:round(data_sep*len(data))].flatten(),data.values[round(data_sep*len(data)):].flatten()
+                # выбор наилучшей модели на трейне
+                text,best_model=best_arima(train, range(0, 4), range(0, 2), range(0, 4))
+                # показать процесс выбора наилучшей модели aic pdq, тест Дики фуллера
+                st.write(text)
+
+                # итерационный прогноз на тесте и показ результатов
+                p ,d,q= best_model[0],best_model[1],best_model[2]
+                y_hat=np.array([])
+                history=train
+                for t in range(len(test)):
+                    model = ARIMA(history, order=(1,0,0))#должно стоять q
+                    model_fit = model.fit(disp=0)
+                    y_hat=np.append(y_hat,model_fit.forecast()[0][0])
+                    history=np.append(history,test[t])
+                my_df=pd.DataFrame({'y_hat':y_hat,
+                               'test':test})
+                # построение прогноза на количество прогнозируемых периодов от последней даты
+                y_hat2=np.array([])
+                history=data.values
+                for t in range(per_forecast):
+                    model = ARIMA(history, order=(1,0,0))
+                    model_fit = model.fit(disp=0)
+                    onestep=model_fit.forecast()[0][0]
+                    y_hat2=np.append(y_hat2,onestep)
+                    history=np.append(history,onestep)
+                # print(y_hat2)
+
+                y_hat_con=np.append(y_hat,y_hat2)
+
+                sep_date=load_data(userdata=userdata).index[round(data_sep*len(load_data(userdata=userdata)))]
+                my_dates=pd.date_range(start=sep_date,periods=len(y_hat),freq='M')
+                date_app=pd.date_range(start=sep_date,periods=len(y_hat_con),freq='M')
+
+                fig,ax = plt.subplots(figsize=(18, 5))
+                ax.plot(my_dates,test, color='black', label = 'Факт')
+                ax.plot(date_app,y_hat_con,'-.', color='blue', label = 'Прогноз')
+                ax.legend(loc='best',fontsize=16)
+                ax.grid()
+                # вывод графика и df
+                st.subheader("Прогноз на тесте")
+                st.pyplot(fig=fig, clear_figure=True, use_container_width=True)
+                my_mse=round(metrics.mean_squared_error(test, y_hat),per_forecast+1)
+                st.write('Ошибка прогноза на тестовой выборке:', str(my_mse))
+
+
+                a=pd.Series(y_hat_con,index=pd.date_range(start=sep_date,periods=len(y_hat_con),freq='M'))
+                b=pd.Series(test,index=pd.date_range(start=sep_date,periods=len(test),freq='M'))
+                df=pd.concat([b,a],axis=1)
+                df.columns=['Факт','Прогноз']
+                st.dataframe(df.T)
+                csv_exp = df.to_csv()
+                b64 = base64.b64encode(csv_exp.encode()).decode()  # some strings <-> bytes conversions necessary here
+                href = f'<a href="data:file/csv;base64,{b64}">Скачать прогноз</a> (добавьте к загруженному файлу расширение **.csv**)'
+                st.markdown(href, unsafe_allow_html=True)
+                st.success('Done!')
+
+
+
 
         ##########################################################################
 

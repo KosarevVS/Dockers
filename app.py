@@ -12,6 +12,7 @@ from keras.layers.convolutional import Conv1D
 from keras.optimizers import SGD
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.arima_model import ARIMA
+import datetime as dt
 #
 @st.cache
 def load_data(url='https://raw.githubusercontent.com/KosarevVS/Dockers/master/my_data.csv',userdata=None):
@@ -169,12 +170,16 @@ def print_rez(model,x_test,y_test,per_forecast,scl,ytest_or,userdata,data_sep):
     b=pd.Series(ytest_or,index=pd.date_range(start=sep_date,periods=len(ytest_or),freq='M'))
     df=pd.concat([b,a],axis=1)
     df.columns=['Факт','Прогноз']
-    st.dataframe(df.T)
     csv_exp = df.to_csv()
     b64 = base64.b64encode(csv_exp.encode()).decode()  # some strings <-> bytes conversions necessary here
+    df.index=[i.strftime("%m/%Y") for i in df.index]
+    st.dataframe(df.T)
+
     href = f'<a href="data:file/csv;base64,{b64}">Скачать прогноз</a> (добавьте к загруженному файлу расширение **.csv**)'
     st.markdown(href, unsafe_allow_html=True)
     st.success('Done!')
+
+
 #
 def best_arima(train, p_values, d_values, q_values):
     best_score, best_cfg = float("inf"), None
@@ -248,11 +253,11 @@ def main():
         wind = st.slider('Размерность паттерна (величина временного окна):', 3, 24, 6)
         # st.write("Прогноз на t+1 период определяют ", wind, ' предыдущих значений прогнозируемого показателя.')
         nepoh = st.slider('Количество эпох обучения:', 50, 200, 200,step=25)
-        # a = st.checkbox("Показать описание параметров")
-        # if a:
-        #     st.write('Величина временного окна - количество наблюдений прогнозируемого показателя, используемых в качестве одного паттерна нейронной сети.')
-        # else:
-        #     pass
+            # a = st.checkbox("Показать описание параметров")
+            # if a:
+            #     st.write('Величина временного окна - количество наблюдений прогнозируемого показателя, используемых в качестве одного паттерна нейронной сети.')
+            # else:
+            #     pass
         agree = st.button('Запустить расчет')
         if agree:
             with st.spinner('Идет обучение нейронной сети...'):
@@ -318,10 +323,7 @@ def main():
                     onestep=model_fit.forecast()[0][0]
                     y_hat2=np.append(y_hat2,onestep)
                     history=np.append(history,onestep)
-                # print(y_hat2)
-
                 y_hat_con=np.append(y_hat,y_hat2)
-
                 sep_date=load_data(userdata=userdata).index[round(data_sep*len(load_data(userdata=userdata)))]
                 my_dates=pd.date_range(start=sep_date,periods=len(y_hat),freq='M')
                 date_app=pd.date_range(start=sep_date,periods=len(y_hat_con),freq='M')
@@ -349,12 +351,5 @@ def main():
                 st.markdown(href, unsafe_allow_html=True)
                 st.success('Done!')
 
-
-
-
-        ##########################################################################
-
-
-    #
 if __name__ == '__main__':
     main()
